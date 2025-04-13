@@ -1,17 +1,11 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
-using System.Windows.Documents;
-using System.Windows.Input;
-using System.Windows.Media;
-using System.Windows.Media.Imaging;
-using System.Windows.Navigation;
-using System.Windows.Shapes;
+using Microsoft.Win32;
 
 namespace BILET2
 {
@@ -40,12 +34,12 @@ namespace BILET2
                 }
                 else
                 {
-                    MessageBox.Show("Количество поставщиков и потребителей должно быть положительным числом.");
+                    MessageBox.Show("Количество поставщиков и потребителей должно быть положительным числом.", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
                 }
             }
             else
             {
-                MessageBox.Show("Введите корректные числа для количества поставщиков и потребителей.");
+                MessageBox.Show("Введите корректные числа для количества поставщиков и потребителей.", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 
@@ -90,6 +84,10 @@ namespace BILET2
         {
             try
             {
+                // Валидация данных
+                if (!ValidateInputData())
+                    return;
+
                 // Получаем данные из интерфейса
                 var supply = supplyInputs.ItemsSource.Cast<InputItem>().Select(x => x.Value).ToArray();
                 var demand = demandInputs.ItemsSource.Cast<InputItem>().Select(x => x.Value).ToArray();
@@ -115,6 +113,47 @@ namespace BILET2
             {
                 MessageBox.Show($"Ошибка: {ex.Message}", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
             }
+        }
+
+        private bool ValidateInputData()
+        {
+            // Проверка запасов
+            var supplyItems = supplyInputs.ItemsSource.Cast<InputItem>().ToList();
+            foreach (var item in supplyItems)
+            {
+                if (item.Value < 0)
+                {
+                    MessageBox.Show($"Запасы не могут быть отрицательными. Проверьте поставщика {item.Name}.", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
+                    return false;
+                }
+            }
+
+            // Проверка потребностей
+            var demandItems = demandInputs.ItemsSource.Cast<InputItem>().ToList();
+            foreach (var item in demandItems)
+            {
+                if (item.Value < 0)
+                {
+                    MessageBox.Show($"Потребности не могут быть отрицательными. Проверьте потребителя {item.Name}.", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
+                    return false;
+                }
+            }
+
+            // Проверка матрицы затрат
+            var costData = costMatrix.ItemsSource.Cast<int[]>().ToList();
+            for (int i = 0; i < costData.Count; i++)
+            {
+                for (int j = 0; j < costData[i].Length; j++)
+                {
+                    if (costData[i][j] < 0)
+                    {
+                        MessageBox.Show($"Затраты не могут быть отрицательными. Проверьте ячейку [{i + 1},{j + 1}].", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
+                        return false;
+                    }
+                }
+            }
+
+            return true;
         }
 
         private void DisplaySolution(TransportProblem result)
@@ -181,6 +220,57 @@ namespace BILET2
             report += $"\nОбщая стоимость перевозок: {result.TotalCost}\n";
 
             txtResult.Text = report;
+        }
+
+        private void BtnSaveSolution_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(txtResult.Text))
+                {
+                    MessageBox.Show("Нет данных для сохранения. Сначала решите задачу.", "Информация", MessageBoxButton.OK, MessageBoxImage.Information);
+                    return;
+                }
+
+                var saveFileDialog = new SaveFileDialog
+                {
+                    Filter = "Текстовые файлы (*.txt)|*.txt|Все файлы (*.*)|*.*",
+                    DefaultExt = ".txt",
+                    FileName = "Решение транспортной задачи.txt"
+                };
+
+                if (saveFileDialog.ShowDialog() == true)
+                {
+                    File.WriteAllText(saveFileDialog.FileName, txtResult.Text);
+                    MessageBox.Show("Решение успешно сохранено!", "Успех", MessageBoxButton.OK, MessageBoxImage.Information);
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Ошибка при сохранении файла: {ex.Message}", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private void BtnClearAll_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                // Очищаем поля ввода
+                tbSuppliers.Text = "3";
+                tbConsumers.Text = "4";
+
+                // Создаем пустые таблицы
+                CreateInputTables(3, 4);
+
+                // Очищаем результаты
+                solutionGrid.ItemsSource = null;
+                solutionGrid.Columns.Clear();
+                txtResult.Text = string.Empty;
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Ошибка при очистке данных: {ex.Message}", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
         }
     }
 }
